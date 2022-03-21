@@ -72,7 +72,7 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::{
 	borrow::Cow,
 	cmp,
-	collections::{HashMap, HashSet},
+	collections::HashSet,
 	convert::TryFrom as _,
 	fs, iter,
 	marker::PhantomData,
@@ -89,6 +89,8 @@ use std::{
 pub use behaviour::{
 	IfDisconnected, InboundFailure, OutboundFailure, RequestFailure, ResponseFailure,
 };
+
+use dashmap::DashMap;
 
 mod metrics;
 mod out_events;
@@ -126,7 +128,7 @@ pub struct NetworkService<B: BlockT + 'static, H: ExHashT> {
 	to_worker: TracingUnboundedSender<ServiceToWorkerMsg<B, H>>,
 	/// For each peer and protocol combination, an object that allows sending notifications to
 	/// that peer. Updated by the [`NetworkWorker`].
-	peers_notifications_sinks: Arc<Mutex<HashMap<(PeerId, Cow<'static, str>), NotificationsSink>>>,
+	peers_notifications_sinks: Arc<DashMap<(PeerId, Cow<'static, str>), NotificationsSink>>,
 	/// Field extracted from the [`Metrics`] struct and necessary to report the
 	/// notifications-related metrics.
 	notifications_sizes_metric: Option<HistogramVec>,
@@ -408,7 +410,7 @@ impl<B: BlockT + 'static, H: ExHashT> NetworkWorker<B, H> {
 		}
 
 		let external_addresses = Arc::new(Mutex::new(Vec::new()));
-		let peers_notifications_sinks = Arc::new(Mutex::new(HashMap::new()));
+		let peers_notifications_sinks = Arc::new(DashMap::new());
 
 		let service = Arc::new(NetworkService {
 			bandwidth,
@@ -740,8 +742,9 @@ impl<B: BlockT + 'static, H: ExHashT> NetworkService<B, H> {
 		// We clone the `NotificationsSink` in order to be able to unlock the network-wide
 		// `peers_notifications_sinks` mutex as soon as possible.
 		let sink = {
-			let peers_notifications_sinks = self.peers_notifications_sinks.lock();
-			if let Some(sink) = peers_notifications_sinks.get(&(target.clone(), protocol.clone())) {
+			if let Some(sink) =
+				self.peers_notifications_sinks.get(&(target.clone(), protocol.clone()))
+			{
 				sink.clone()
 			} else {
 				// Notification silently discarded, as documented.
@@ -844,8 +847,7 @@ impl<B: BlockT + 'static, H: ExHashT> NetworkService<B, H> {
 		// We clone the `NotificationsSink` in order to be able to unlock the network-wide
 		// `peers_notifications_sinks` mutex as soon as possible.
 		let sink = {
-			let peers_notifications_sinks = self.peers_notifications_sinks.lock();
-			if let Some(sink) = peers_notifications_sinks.get(&(target, protocol.clone())) {
+			if let Some(sink) = self.peers_notifications_sinks.get(&(target, protocol.clone())) {
 				sink.clone()
 			} else {
 				return Err(NotificationSenderError::Closed)
@@ -1473,7 +1475,7 @@ pub struct NetworkWorker<B: BlockT + 'static, H: ExHashT> {
 	boot_node_ids: Arc<HashSet<PeerId>>,
 	/// For each peer and protocol combination, an object that allows sending notifications to
 	/// that peer. Shared with the [`NetworkService`].
-	peers_notifications_sinks: Arc<Mutex<HashMap<(PeerId, Cow<'static, str>), NotificationsSink>>>,
+	peers_notifications_sinks: Arc<DashMap<(PeerId, Cow<'static, str>), NotificationsSink>>,
 	/// Controller for the handler of incoming and outgoing transactions.
 	tx_handler_controller: transactions::TransactionsHandlerController<H>,
 }
@@ -1754,8 +1756,8 @@ impl<B: BlockT + 'static, H: ExHashT> Future for NetworkWorker<B, H> {
 							.inc();
 					}
 					{
-						let mut peers_notifications_sinks = this.peers_notifications_sinks.lock();
-						let _previous_value = peers_notifications_sinks
+						let _previous_value = this
+							.peers_notifications_sinks
 							.insert((remote.clone(), protocol.clone()), notifications_sink);
 						debug_assert!(_previous_value.is_none());
 					}
@@ -1771,8 +1773,7 @@ impl<B: BlockT + 'static, H: ExHashT> Future for NetworkWorker<B, H> {
 					protocol,
 					notifications_sink,
 				})) => {
-					let mut peers_notifications_sinks = this.peers_notifications_sinks.lock();
-					if let Some(s) = peers_notifications_sinks.get_mut(&(remote, protocol)) {
+					if let Some(mut s) = this.peers_notifications_sinks.get_mut(&(remote, protocol)) {
 						*s = notifications_sink;
 					} else {
 						error!(
@@ -1818,9 +1819,8 @@ impl<B: BlockT + 'static, H: ExHashT> Future for NetworkWorker<B, H> {
 						protocol: protocol.clone(),
 					});
 					{
-						let mut peers_notifications_sinks = this.peers_notifications_sinks.lock();
 						let _previous_value =
-							peers_notifications_sinks.remove(&(remote.clone(), protocol));
+							this.peers_notifications_sinks.remove(&(remote.clone(), protocol));
 						debug_assert!(_previous_value.is_some());
 					}
 				},

@@ -551,7 +551,7 @@ impl ExtBuilder {
 	}
 }
 
-pub(crate) fn active_era() -> EraIndex {
+pub fn active_era() -> EraIndex {
 	Staking::active_era().unwrap().index
 }
 
@@ -609,7 +609,7 @@ pub(crate) fn run_to_block(n: BlockNumber) {
 }
 
 /// Progresses from the current block number (whatever that may be) to the `P * session_index + 1`.
-pub(crate) fn start_session(session_index: SessionIndex) {
+pub fn start_session(session_index: SessionIndex) {
 	let end: u64 = if Offset::get().is_zero() {
 		(session_index as u64) * Period::get()
 	} else {
@@ -641,7 +641,7 @@ pub(crate) fn start_active_era(era_index: EraIndex) {
 	assert_eq!(current_era(), active_era());
 }
 
-pub(crate) fn current_total_payout_for_duration(duration: u64) -> Balance {
+pub fn current_total_payout_for_duration(duration: u64) -> Balance {
 	let (payout, _rest) = <Test as Config>::EraPayout::era_payout(
 		Staking::eras_total_stake(active_era()),
 		Balances::total_issuance(),
@@ -651,7 +651,7 @@ pub(crate) fn current_total_payout_for_duration(duration: u64) -> Balance {
 	payout
 }
 
-pub(crate) fn maximum_payout_for_duration(duration: u64) -> Balance {
+pub fn maximum_payout_for_duration(duration: u64) -> Balance {
 	let (payout, rest) = <Test as Config>::EraPayout::era_payout(
 		Staking::eras_total_stake(active_era()),
 		Balances::total_issuance(),
@@ -677,7 +677,7 @@ pub(crate) fn time_per_era() -> u64 {
 }
 
 /// Time that will be calculated for the reward per era.
-pub(crate) fn reward_time_per_era() -> u64 {
+pub fn reward_time_per_era() -> u64 {
 	time_per_era() - BLOCK_TIME
 }
 
@@ -747,7 +747,7 @@ pub(crate) fn add_slash(who: &AccountId) {
 }
 
 /// Make all validator and nominator request their payment
-pub(crate) fn make_all_reward_payment(era: EraIndex) {
+pub fn make_all_reward_payment(era: EraIndex) {
 	let validators_with_reward = ErasRewardPoints::<Test>::get(era)
 		.individual
 		.keys()
@@ -781,7 +781,7 @@ macro_rules! assert_session_era {
 	};
 }
 
-pub(crate) fn staking_events() -> Vec<crate::Event<Test>> {
+pub fn staking_events() -> Vec<crate::Event<Test>> {
 	System::events()
 		.into_iter()
 		.map(|r| r.event)

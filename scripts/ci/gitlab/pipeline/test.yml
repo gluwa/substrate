@@ -83,7 +83,6 @@ cargo-check-benches:
     - .collect-artifacts
     - .pipeline-stopper-artifacts
   before_script:
-    - !reference [.timestamp, before_script]
     # perform rusty-cachier operations before any further modifications to the git repo to make cargo feel cheated not so much
     - !reference [.rust-info-script, script]
     - !reference [.job-switcher, before_script]
@@ -146,8 +145,6 @@ node-bench-regression-guard:
       artifacts: true
   variables:
     CI_IMAGE: "paritytech/node-bench-regression-guard:latest"
-  before_script:
-    - !reference [.timestamp, before_script]
   script:
     - echo "------- IMPORTANT -------"
     - echo "node-bench-regression-guard depends on the results of a cargo-check-benches job"

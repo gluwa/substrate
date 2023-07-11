@@ -153,12 +153,9 @@ variables:
 # Description of the commands is available here - https://gitlab.parity.io/parity/infrastructure/ci_cd/rusty-cachier/client#description
 .rusty-cachier:
   before_script:
-    - curl -s https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.parity.io/parity/infrastructure/ci_cd/rusty-cachier/client/-/raw/release/util/install.sh | bash
-    - rusty-cachier environment check --gracefully
-    - $(rusty-cachier environment inject)
-    - rusty-cachier project mtime
+    - alias rusty-cachier='echo'
   after_script:
-    - env RUSTY_CACHIER_SUPRESS_OUTPUT=true rusty-cachier snapshot destroy
+    - echo
 
 .test-refs:
   rules:
@@ -322,8 +319,7 @@ rusty-cachier-notify:
     GIT_STRATEGY: none
   dependencies: []
   script:
-    - curl -s https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.parity.io/parity/infrastructure/ci_cd/rusty-cachier/client/-/raw/release/util/install.sh | bash
-    - rusty-cachier cache notify
+    - echo
 
 #### stage:                        .post
 

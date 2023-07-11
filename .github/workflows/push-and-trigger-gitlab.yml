@@ -1,0 +1,43 @@
+name: Trigger GitLab CI
+
+on:
+  pull_request:
+
+jobs:
+  trigger-gitlab:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Dependencies
+        run: |
+          sudo apt install -y jq
+
+      - name: Clone repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Checkout branch
+        id: pr_data
+        run: |
+          PR=$(jq -r .pull_request.number "$GITHUB_EVENT_PATH")
+          if [ ! -z "$PR" ]; then
+            echo "pr_branch=PR-$PR" >> "$GITHUB_OUTPUT"
+            git checkout -b PR-$PR
+          else
+            git checkout ${{ github.event.workflow_run.head_branch }}
+          fi
+
+      - name: Push to GitLab
+        if: env.GITLAB_PRIVATE_SSH_KEY
+        env:
+          GITLAB_PRIVATE_SSH_KEY: ${{ secrets.GITLAB_PRIVATE_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "${GITLAB_PRIVATE_SSH_KEY}" > ~/.ssh/id_rsa
+          chmod 400 ~/.ssh/id_rsa
+          touch ~/.ssh/known_hosts
+          ssh-keyscan -t rsa gitlab.com >> ~/.ssh/known_hosts
+          git remote add gitlab git@gitlab.com:gluwa-inc/substrate.git
+          git push -f gitlab
+          # the push itself should trigger GitLab's pipelines

@@ -116,8 +116,6 @@ variables:
     - !reference [.timestamp, before_script]
     - !reference [.job-switcher, before_script]
     - !reference [.prepare-env, before_script]
-  tags:
-    - kubernetes-parity-build
 
 .rust-info-script:
   script:

@@ -686,6 +686,7 @@ mod tests {
 							&parent_hash,
 							parent_number,
 							slot.into(),
+							0.into(),
 						)
 						.unwrap()
 						.unwrap();

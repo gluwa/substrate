@@ -63,9 +63,10 @@ impl SlotTimestampProvider {
 		let slot_duration = sc_consensus_babe::configuration(&*client)?.slot_duration();
 
 		let time = Self::with_header(&client, slot_duration, |header| {
-			let slot_number = *sc_consensus_babe::find_pre_digest::<B>(&header, &sp_core::U256::zero())
-				.map_err(|err| format!("{}", err))?
-				.slot();
+			let slot_number =
+				*sc_consensus_babe::find_pre_digest::<B>(&header, &sp_core::U256::zero())
+					.map_err(|err| format!("{}", err))?
+					.slot();
 			Ok(slot_number)
 		})?;
 

@@ -291,10 +291,10 @@ fn rewards_should_work() {
 				individual: vec![(11, 100), (21, 50)].into_iter().collect(),
 			}
 		);
-		let part_for_10 = Perbill::from_rational::<u32>(1000, 1125);
-		let part_for_20 = Perbill::from_rational::<u32>(1000, 1375);
-		let part_for_100_from_10 = Perbill::from_rational::<u32>(125, 1125);
-		let part_for_100_from_20 = Perbill::from_rational::<u32>(375, 1375);
+		let part_for_10 = Perbill::from_rational::<u32>(1000, 1200);
+		let part_for_20 = Perbill::from_rational::<u32>(1000, 1300);
+		let part_for_100_from_10 = Perbill::from_rational::<u32>(200, 1200);
+		let part_for_100_from_20 = Perbill::from_rational::<u32>(300, 1300);
 
 		start_session(2);
 		start_session(3);

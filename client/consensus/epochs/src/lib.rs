@@ -795,7 +795,7 @@ mod tests {
 
 		let epoch_changes = EpochChanges::<_, _, Epoch>::new();
 		let genesis_epoch = epoch_changes
-			.epoch_descriptor_for_child_of(&is_descendent_of, b"0", 0, 10101)
+			.epoch_descriptor_for_child_of(&is_descendent_of, b"0", 0, 10101, 0.into())
 			.unwrap()
 			.unwrap();
 
@@ -807,7 +807,7 @@ mod tests {
 		};
 
 		let genesis_epoch_2 = epoch_changes
-			.epoch_descriptor_for_child_of(&is_descendent_of, b"0", 0, 10102)
+			.epoch_descriptor_for_child_of(&is_descendent_of, b"0", 0, 10102, 0.into())
 			.unwrap()
 			.unwrap();
 
@@ -839,7 +839,7 @@ mod tests {
 
 		let mut epoch_changes = EpochChanges::<_, _, Epoch>::new();
 		let genesis_epoch = epoch_changes
-			.epoch_descriptor_for_child_of(&is_descendent_of, b"0", 0, 100)
+			.epoch_descriptor_for_child_of(&is_descendent_of, b"0", 0, 100, 0.into())
 			.unwrap()
 			.unwrap();
 
@@ -862,7 +862,14 @@ mod tests {
 		{
 			// x is still within the genesis epoch.
 			let x = epoch_changes
-				.epoch_data_for_child_of(&is_descendent_of, b"A", 1, end_slot - 1, &make_genesis)
+				.epoch_data_for_child_of(
+					&is_descendent_of,
+					b"A",
+					1,
+					end_slot - 1,
+					&make_genesis,
+					0.into(),
+				)
 				.unwrap()
 				.unwrap();
 
@@ -873,7 +880,14 @@ mod tests {
 			// x is now at the next epoch, because the block is now at the
 			// start slot of epoch 1.
 			let x = epoch_changes
-				.epoch_data_for_child_of(&is_descendent_of, b"A", 1, end_slot, &make_genesis)
+				.epoch_data_for_child_of(
+					&is_descendent_of,
+					b"A",
+					1,
+					end_slot,
+					&make_genesis,
+					0.into(),
+				)
 				.unwrap()
 				.unwrap();
 
@@ -890,6 +904,7 @@ mod tests {
 					1,
 					epoch_1.end_slot() - 1,
 					&make_genesis,
+					0.into(),
 				)
 				.unwrap()
 				.unwrap();
@@ -923,7 +938,7 @@ mod tests {
 		// insert genesis epoch for A
 		{
 			let genesis_epoch_a_descriptor = epoch_changes
-				.epoch_descriptor_for_child_of(&is_descendent_of, b"0", 0, 100)
+				.epoch_descriptor_for_child_of(&is_descendent_of, b"0", 0, 100, 0.into())
 				.unwrap()
 				.unwrap();
 
@@ -940,7 +955,7 @@ mod tests {
 		// insert genesis epoch for X
 		{
 			let genesis_epoch_x_descriptor = epoch_changes
-				.epoch_descriptor_for_child_of(&is_descendent_of, b"0", 0, 1000)
+				.epoch_descriptor_for_child_of(&is_descendent_of, b"0", 0, 1000, 0.into())
 				.unwrap()
 				.unwrap();
 
@@ -958,21 +973,21 @@ mod tests {
 		// respect the chain structure.
 		{
 			let epoch_for_a_child = epoch_changes
-				.epoch_data_for_child_of(&is_descendent_of, b"A", 1, 101, &make_genesis)
+				.epoch_data_for_child_of(&is_descendent_of, b"A", 1, 101, &make_genesis, 0.into())
 				.unwrap()
 				.unwrap();
 
 			assert_eq!(epoch_for_a_child, make_genesis(100));
 
 			let epoch_for_x_child = epoch_changes
-				.epoch_data_for_child_of(&is_descendent_of, b"X", 1, 1001, &make_genesis)
+				.epoch_data_for_child_of(&is_descendent_of, b"X", 1, 1001, &make_genesis, 0.into())
 				.unwrap()
 				.unwrap();
 
 			assert_eq!(epoch_for_x_child, make_genesis(1000));
 
 			let epoch_for_x_child_before_genesis = epoch_changes
-				.epoch_data_for_child_of(&is_descendent_of, b"X", 1, 101, &make_genesis)
+				.epoch_data_for_child_of(&is_descendent_of, b"X", 1, 101, &make_genesis, 0.into())
 				.unwrap();
 
 			// even though there is a genesis epoch at that slot, it's not in
@@ -1014,7 +1029,13 @@ mod tests {
 			let make_genesis = |slot| Epoch { start_slot: slot, duration: 100 };
 			// Get epoch descriptor valid for 'slot'
 			let epoch_descriptor = epoch_changes
-				.epoch_descriptor_for_child_of(&is_descendent_of, parent_hash, parent_number, slot)
+				.epoch_descriptor_for_child_of(
+					&is_descendent_of,
+					parent_hash,
+					parent_number,
+					slot,
+					0.into(),
+				)
 				.unwrap()
 				.unwrap();
 			// Increment it
@@ -1111,7 +1132,13 @@ mod tests {
 			let make_genesis = |slot| Epoch { start_slot: slot, duration: 5 };
 			// Get epoch descriptor valid for 'slot'
 			let epoch_descriptor = epoch_changes
-				.epoch_descriptor_for_child_of(&is_descendent_of, parent_hash, parent_number, slot)
+				.epoch_descriptor_for_child_of(
+					&is_descendent_of,
+					parent_hash,
+					parent_number,
+					slot,
+					0.into(),
+				)
 				.unwrap()
 				.unwrap();
 			// Increment it

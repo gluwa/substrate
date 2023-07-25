@@ -96,7 +96,7 @@ impl Environment<TestBlock> for DummyFactory {
 	type Error = Error;
 
 	fn init(&mut self, parent_header: &<TestBlock as BlockT>::Header) -> Self::CreateProposer {
-		let parent_slot = crate::find_pre_digest::<TestBlock>(parent_header)
+		let parent_slot = crate::find_pre_digest::<TestBlock>(parent_header, &0.into())
 			.expect("parent header has a pre-digest")
 			.slot();
 
@@ -131,7 +131,7 @@ impl DummyProposer {
 			Err(e) => return future::ready(Err(e)),
 		};
 
-		let this_slot = crate::find_pre_digest::<TestBlock>(block.header())
+		let this_slot = crate::find_pre_digest::<TestBlock>(block.header(), &0.into())
 			.expect("baked block has valid pre-digest")
 			.slot();
 
@@ -145,6 +145,7 @@ impl DummyProposer {
 				self.parent_number,
 				this_slot,
 				|slot| Epoch::genesis(&self.factory.config, slot),
+				0.into(),
 			)
 			.expect("client has data to find epoch")
 			.expect("can compute epoch for baked block");
@@ -450,7 +451,7 @@ async fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + '
 					// this test fail.
 					let parent_header = client_clone.header(parent).ok().flatten().unwrap();
 					let slot = Slot::from(
-						find_pre_digest::<TestBlock>(&parent_header).unwrap().slot() + 1,
+						find_pre_digest::<TestBlock>(&parent_header, &0.into()).unwrap().slot() + 1,
 					);
 
 					async move { Ok((InherentDataProvider::new(slot),)) }
@@ -693,7 +694,7 @@ async fn propose_and_import_block<Transaction: Send + 'static>(
 	let mut proposer = proposer_factory.init(parent).await.unwrap();
 
 	let slot = slot.unwrap_or_else(|| {
-		let parent_pre_digest = find_pre_digest::<TestBlock>(parent).unwrap();
+		let parent_pre_digest = find_pre_digest::<TestBlock>(parent, &0.into()).unwrap();
 		parent_pre_digest.slot() + 1
 	});
 
@@ -716,6 +717,7 @@ async fn propose_and_import_block<Transaction: Send + 'static>(
 			&parent_hash,
 			*parent.number(),
 			slot,
+			0.into(),
 		)
 		.unwrap()
 		.unwrap();
@@ -806,9 +808,14 @@ async fn importing_block_one_sets_genesis_epoch() {
 
 	let epoch_changes = data.link.epoch_changes.shared_data();
 	let epoch_for_second_block = epoch_changes
-		.epoch_data_for_child_of(descendent_query(&*client), &block_hash, 1, 1000.into(), |slot| {
-			Epoch::genesis(&data.link.config, slot)
-		})
+		.epoch_data_for_child_of(
+			descendent_query(&*client),
+			&block_hash,
+			1,
+			1000.into(),
+			|slot| Epoch::genesis(&data.link.config, slot),
+			0.into(),
+		)
 		.unwrap()
 		.unwrap();
 
@@ -1307,6 +1314,7 @@ async fn allows_skipping_epochs() {
 			epoch_length + 2,
 			(epoch_length * 3 + 2).into(),
 			|slot| Epoch::genesis(&data.link.config, slot),
+			0.into(),
 		)
 		.unwrap()
 		.unwrap();
@@ -1323,6 +1331,7 @@ async fn allows_skipping_epochs() {
 			epoch_length + 2,
 			(epoch_length * 4 + 1).into(),
 			|slot| Epoch::genesis(&data.link.config, slot),
+			0.into(),
 		)
 		.unwrap()
 		.unwrap();
@@ -1383,6 +1392,7 @@ async fn allows_skipping_epochs_on_some_forks() {
 			epoch_length + 2,
 			(epoch_length * 2 + 2).into(),
 			|slot| Epoch::genesis(&data.link.config, slot),
+			0.into(),
 		)
 		.unwrap()
 		.unwrap();
@@ -1407,6 +1417,7 @@ async fn allows_skipping_epochs_on_some_forks() {
 			epoch_length + 2,
 			(epoch_length * 3 + 2).into(),
 			|slot| Epoch::genesis(&data.link.config, slot),
+			0.into(),
 		)
 		.unwrap()
 		.unwrap();
@@ -1425,6 +1436,7 @@ async fn allows_skipping_epochs_on_some_forks() {
 			epoch_length + 2,
 			(epoch_length * 4 + 1).into(),
 			|slot| Epoch::genesis(&data.link.config, slot),
+			0.into(),
 		)
 		.unwrap()
 		.unwrap();
@@ -1442,6 +1454,7 @@ async fn allows_skipping_epochs_on_some_forks() {
 			epoch_length + 2,
 			(epoch_length * 4 + 1).into(),
 			|slot| Epoch::genesis(&data.link.config, slot),
+			0.into(),
 		)
 		.unwrap()
 		.unwrap();

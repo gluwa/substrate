@@ -312,8 +312,6 @@ include:
   - local: scripts/ci/gitlab/default-pipeline.yml
     rules:
       - if: $PIPELINE != "automatic-crate-publishing"
-  - project: parity/infrastructure/ci_cd/shared
-    file: /common/timestamp.yml
 
 #### stage:                        notify
 

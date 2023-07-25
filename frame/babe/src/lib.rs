@@ -122,7 +122,6 @@ impl From<&pallet::GenesisConfig> for InitConfig {
 	}
 }
 
-
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -905,9 +904,7 @@ impl<T: Config> Pallet<T> {
 	pub fn genesis_init(config: crate::InitConfig) {
 		SegmentIndex::<T>::put(0);
 		Pallet::<T>::initialize_genesis_authorities(&config.authorities);
-		EpochConfig::<T>::put(
-			config.epoch_config.clone().expect("epoch_config must not be None"),
-		);
+		EpochConfig::<T>::put(config.epoch_config.clone().expect("epoch_config must not be None"));
 	}
 }
 

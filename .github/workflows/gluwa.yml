@@ -99,15 +99,16 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v3
 
-      - name: Set-Up
+      - name: Configure rustc version
         run: |
-          sudo apt-get update
-          sudo apt install -y cmake pkg-config libssl-dev clang libclang-dev llvm protobuf-compiler
+          # use the version defined in gluwa/creditcoin
+          RUSTC_VERSION=$(curl --silent https://raw.githubusercontent.com/gluwa/creditcoin/dev/rust-toolchain.toml | grep channel | tail -n1 | tr -d " " | cut -f2 -d'"')
+          echo "RUSTC_VERSION=$RUSTC_VERSION" >> "$GITHUB_ENV"
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2023-04-16
+          toolchain: ${{ env.RUSTC_VERSION }}
           target: wasm32-unknown-unknown
           profile: minimal
           override: true
@@ -126,22 +127,23 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set-Up
+      - name: Configure rustc version
         run: |
-          sudo apt-get update
-          sudo apt install -y cmake pkg-config libssl-dev clang libclang-dev llvm protobuf-compiler
+          # use the version defined in gluwa/creditcoin
+          RUSTC_VERSION=$(curl --silent https://raw.githubusercontent.com/gluwa/creditcoin/dev/rust-toolchain.toml | grep channel | tail -n1 | tr -d " " | cut -f2 -d'"')
+          echo "RUSTC_VERSION=$RUSTC_VERSION" >> "$GITHUB_ENV"
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2023-04-16
+          toolchain: ${{ env.RUSTC_VERSION }}
           target: wasm32-unknown-unknown
           profile: minimal
           override: true
       - uses: Swatinem/rust-cache@v2
 
       - name: Run tests
-        uses: actions-rs/cargo@v1
+        uses: gluwa/cargo@dev
         with:
           command: test
           args: --features runtime-benchmarks

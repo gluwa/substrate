@@ -14,90 +14,72 @@ on:
 permissions: read-all
 
 env:
-  RUNNER_VM_NAME: "github-runner-$GITHUB_RUN_ID-attempt-$GITHUB_RUN_ATTEMPT"
-  RESOURCE_GROUP: "github-runner-$GITHUB_RUN_ID-attempt-$GITHUB_RUN_ATTEMPT"
-  AZ_LOCATION: "westus3"
+  RUNNER_VM_NAME: "${{ github.event.repository.name }}-$GITHUB_RUN_ID-attempt-$GITHUB_RUN_ATTEMPT"
+  LINODE_REGION: "nl-ams"
+  # Shared CPU, Linode 8 GB, 4 vCPU, 96 $/mo
+  LINODE_VM_SIZE: "g6-standard-4"
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   deploy-github-runner:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
-    outputs:
-      runner_vm_name: ${{ steps.get-env.outputs.runner_vm_name }}
-      resource_group: ${{ steps.get-env.outputs.resource_group }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - proxy_type: substrate
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Install azure-cli
+      # See https://github.com/actions/runner/issues/1879#issuecomment-1123196869
+      - name: Create matrix.txt
         run: |
-          sudo apt remove azure-cli -y && sudo apt autoremove -y
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-          sudo apt install -y jq
-          az version
-
-      - name: Authorize hosted-runner
-        run: |
-          mkdir -p ~/.ssh/
-          ssh-keygen -q -t rsa -N '' -f ~/.ssh/id_rsa
-          cat ~/.ssh/id_rsa.pub >> .github/authorized_keys
+          echo "proxy=${{ matrix.proxy }} / ${{ matrix.secret }} / type=${{ matrix.proxy_type }}" > matrix.txt
 
       - name: Evaluate env vars
         id: get-env
         run: |
+          HASH_VALUE=$(echo "${{ hashFiles('matrix.txt') }}" | cut -c1-7)
+          rm matrix.txt
+
           # WARNING: using env.RUNNER_VM_NAME directly in job outputs above
           # doesn't evaluate the $GITHUB_RUN_ID reference
-          echo "runner_vm_name=${{ env.RUNNER_VM_NAME }}" >> "$GITHUB_OUTPUT"
-          echo "resource_group=${{ env.RESOURCE_GROUP }}" >> "$GITHUB_OUTPUT"
+          echo "runner_vm_name=${{ env.RUNNER_VM_NAME }}-$HASH_VALUE" >> "$GITHUB_OUTPUT"
 
       - name: Provision VM
         if: env.LC_GITHUB_REPO_ADMIN_TOKEN
         run: |
-          echo "INFO: From ENVs: RUNNER_VM_NAME=${{ env.RUNNER_VM_NAME }}"
-          echo "INFO: From Step: RUNNER_VM_NAME=${{ steps.get-env.outputs.runner_vm_name }}"
-
-          az login --service-principal --username "${{ secrets.AZURE_APP_ID }}" --password "${{ secrets.AZURE_APP_PASSWORD }}" --tenant "${{ secrets.AZURE_TENANT_ID }}"
-          az account set --subscription "Playground Subscription"
-          ## az account set -s "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-
-
-          # create resource group
-          echo "INFO: ${{ steps.get-env.outputs.resource_group }}"
-          az group create -n "${{ steps.get-env.outputs.resource_group }}" --location "${{ env.AZ_LOCATION }}"
-
-          # RG Creditcoin-Test is in WestUS and the CPU quota is already full
-          # that's why specify a different region here
-          az deployment group create -g "${{ steps.get-env.outputs.resource_group }}" -f .github/runner.bicep \
-              --parameters location="${{ env.AZ_LOCATION }}" \
-              --parameters vmName="${{ steps.get-env.outputs.runner_vm_name }}" \
-              --parameters adminPasswordOrKey="$(cat .github/authorized_keys)" > output.json
-
-          # provision the GitHub Runner binary on the VM
-          # passing additional ENV values
-          SSH_USER_AT_HOSTNAME=$(jq -r '.properties.outputs.sshUserAtHostname.value' < output.json)
-          echo "INFO: $SSH_USER_AT_HOSTNAME"
-
-          export LC_RUNNER_VM_NAME="${{ env.RUNNER_VM_NAME }}"
-          until ssh -i ~/.ssh/id_rsa \
-              -o SendEnv=LC_GITHUB_REPO_ADMIN_TOKEN,LC_RUNNER_VM_NAME \
-              -o StrictHostKeyChecking=no "$SSH_USER_AT_HOSTNAME" < ./.github/provision-github-runner.sh; do
-            echo "DEBUG: retrying ssh connection ..."
-            sleep 30
-          done
+          .github/provision-linode-vm.sh
         env:
+          LC_OWNER_REPO_SLUG: ${{ github.repository }}
           LC_GITHUB_REPO_ADMIN_TOKEN: ${{ secrets.GH_REPO_ADMIN_TOKEN }}
           LC_RUNNER_EPHEMERAL: false
+          LC_RUNNER_VM_NAME: ${{ steps.get-env.outputs.runner_vm_name }}
+          LC_PROXY_ENABLED: ${{ matrix.proxy }}
+          LC_PROXY_SECRET_VARIANT: ${{ matrix.secret }}
+          LC_PROXY_TYPE: ${{ matrix.proxy_type }}
+          LC_WORKFLOW_ID: ${{ github.run_id }}
+          LINODE_CLI_TOKEN: ${{ secrets.LINODE_CLI_TOKEN }}
+
+      - name: Upload Linode logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linode-${{ matrix.proxy }}-${{ matrix.secret }}-${{ matrix.proxy_type }}-logs
+          path: retry*.json
 
   cargo-check:
     needs:
       - deploy-github-runner
     runs-on:
-      [self-hosted, "${{ needs.deploy-github-runner.outputs.runner_vm_name }}"]
+      [self-hosted, "workflow-${{ github.run_id }}", "type-substrate"]
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Configure rustc version
         run: |
@@ -106,7 +88,7 @@ jobs:
           echo "RUSTC_VERSION=$RUSTC_VERSION" >> "$GITHUB_ENV"
 
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: gluwa/toolchain@dev
         with:
           toolchain: ${{ env.RUSTC_VERSION }}
           target: wasm32-unknown-unknown
@@ -122,10 +104,10 @@ jobs:
     needs:
       - deploy-github-runner
     runs-on:
-      [self-hosted, "${{ needs.deploy-github-runner.outputs.runner_vm_name }}"]
+      [self-hosted, "workflow-${{ github.run_id }}", "type-substrate"]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Configure rustc version
         run: |
@@ -134,7 +116,7 @@ jobs:
           echo "RUSTC_VERSION=$RUSTC_VERSION" >> "$GITHUB_ENV"
 
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: gluwa/toolchain@dev
         with:
           toolchain: ${{ env.RUSTC_VERSION }}
           target: wasm32-unknown-unknown
@@ -156,33 +138,32 @@ jobs:
       - cargo-test
     if: ${{ always() && needs.deploy-github-runner.result != 'skipped' }}
 
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - proxy_type: substrate
+
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
+      # See https://github.com/actions/runner/issues/1879#issuecomment-1123196869
+      - name: Create matrix.txt
+        run: |
+          echo "proxy=${{ matrix.proxy }} / ${{ matrix.secret }} / type=${{ matrix.proxy_type }}" > matrix.txt
 
       - name: Evaluate env vars
         id: get-env
         run: |
-          # WARNING: using env.RUNNER_VM_NAME directly in job outputs above
-          # doesn't evaluate the $GITHUB_RUN_ID reference
-          echo "resource_group=${{ env.RESOURCE_GROUP }}" >> "$GITHUB_OUTPUT"
+          HASH_VALUE=$(echo "${{ hashFiles('matrix.txt') }}" | cut -c1-7)
+          rm matrix.txt
 
-      - name: Install azure-cli
-        run: |
-          sudo apt remove azure-cli -y && sudo apt autoremove -y
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-          az version
+          echo "runner_vm_name=${{ env.RUNNER_VM_NAME }}-$HASH_VALUE" >> "$GITHUB_OUTPUT"
 
       - name: Remove VM
+        continue-on-error: true
         run: |
-          echo "INFO: RUNNER_VM_NAME=${{ env.RUNNER_VM_NAME }}"
-
-          az login --service-principal --username "${{ secrets.AZURE_APP_ID }}" --password "${{ secrets.AZURE_APP_PASSWORD }}" --tenant "${{ secrets.AZURE_TENANT_ID }}"
-          az account set --subscription "Playground Subscription"
-          az group delete --yes -n "${{ steps.get-env.outputs.resource_group }}"
-
-      - name: Upload logs
-        uses: actions/upload-artifact@v3
-        if: always()
-        with:
-          name: "Azure resources"
-          path: azure_resource_list.json
+          .github/remove-linode-vm.sh
+        env:
+          LINODE_CLI_TOKEN: ${{ secrets.LINODE_CLI_TOKEN }}
+          LC_RUNNER_VM_NAME: ${{ steps.get-env.outputs.runner_vm_name }}
